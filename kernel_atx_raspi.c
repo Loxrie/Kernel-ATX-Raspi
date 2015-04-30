@@ -35,7 +35,6 @@
 #include <linux/slab.h>
 
 #include <linux/ioport.h>
-#include <unistd.h>
 #include <linux/reboot.h>
 #include <asm/io.h>
 
@@ -64,12 +63,12 @@ MODULE_LICENSE("GPL");
 
 #define BSC1_BASE		(PERI_BASE + 0x804000)
 
-#define MAX_PINS 2
+#define MAX_ARGS 4
 
 static volatile unsigned *gpio;
 
 struct mk_config {
-  int args[MAX_PINS];
+  int args[MAX_ARGS];
   unsigned int nargs;
 };
 
@@ -142,13 +141,11 @@ static void mk_timer(unsigned long private) {
   if (mk->num_ticks_held >= mk->max_ticks) {
 	// Initiate shutdown.
 	printk("Shutdown initiated by ATX-Raspi Driver\n");
-	sync();
-	reboot(LINUX_REBOOT_CMD_POWER_OFF);
+	kernel_power_off();
   } else if (mk->prev_down == 1 && mk->cur_down == 0 && mk->num_ticks_held >= mk->reboot_ticks) {
 	// Initiate reboot.
 	printk("Reboot initiated by ATX-Raspi Driver\n");
-	sync();
-	reboot(LINUX_REBOOT_CMD_RESTART);
+	kernel_restart(NULL);
   }
   mod_timer(&mk->timer, jiffies + MK_REFRESH_TIME);
 }
@@ -164,8 +161,6 @@ static void __init mk_setup_pins(struct mk *mk, int *pins) {
 
 static struct mk __init *mk_probe(int *pins, int n_pins) {
   struct mk *mk;
-  int i;
-  int count = 0;
   int err;
 
   mk = kzalloc(sizeof (struct mk), GFP_KERNEL);
@@ -179,7 +174,7 @@ static struct mk __init *mk_probe(int *pins, int n_pins) {
   mk->prev_down = 0;
   mk->cur_down = 0;
   
-  if (n_pins >= MAX_PINS) {
+  if (n_pins > MAX_ARGS) {
     pr_err("Incorrect number of pins\n");
     err = -EINVAL;
     goto err_out;
