@@ -38,6 +38,7 @@
 #include <linux/ioport.h>
 #include <asm/io.h>
 
+#include <sys/time.h>
 
 MODULE_AUTHOR("Paul Downs");
 MODULE_DESCRIPTION("GPIO and ATX-Raspi Driver");
@@ -64,17 +65,6 @@ MODULE_LICENSE("GPL");
 
 #define BSC1_BASE		(PERI_BASE + 0x804000)
 
-
-/*
- * MCP23017 Defines
- */
-#define MPC23017_GPIOA_MODE		0x00
-#define MPC23017_GPIOB_MODE		0x01
-#define MPC23017_GPIOA_PULLUPS_MODE	0x0c
-#define MPC23017_GPIOB_PULLUPS_MODE	0x0d
-#define MPC23017_GPIOA_READ             0x12
-#define MPC23017_GPIOB_READ             0x13
-
 #define MAX_PINS 2
 
 static volatile unsigned *gpio;
@@ -89,21 +79,26 @@ static struct raspiatx_config raspiatx_cfg __initdata;
 module_param_array_named(map, mk_cfg.args, int, &(mk_cfg.nargs), 0);
 MODULE_PARM_DESC(map, "Enable or disable GPIO and ATX-Raspi Board");
 
-#define MK_REFRESH_TIME	HZ/100
+/* This gives us, in theory, a 50m/s tick on kernel module which is fine for 
+ * a button that needs to be held down for AT LEAST 200m/s to do anything (4 ticks)
+ */
+#define MK_REFRESH_TIME	HZ/20
 
 struct mk {
-  struct timer_list timer;
+  int button_pin;
+  int shutdown_pin;
+  timer_list timer;
+  int num_ticks_held; // How many of our modules ticks has the button been held for?
+  int prev_down; // Where we held down before?
+  int cur_down; // Are we held down now?
   int used;
   struct mutex mutex;
 };
 
 static struct mk *mk_base;
 
-static const int atx_raspi_outpin  = 21;
-static const int atx_raspi_inpin   = 20;
-static const int minimum_time      = 200;
-static const int reboot_max_time   = 600;
-static const int shutdown_max_time = 2000;
+static const int reboot_max_ticks   = 12;
+static const int shutdown_max_ticks = 40;
 
 /* GPIO UTILS */
 static void setGpioPullUps(int pullUps) {
@@ -117,6 +112,22 @@ static void setGpioPullUps(int pullUps) {
 
 static void setGpioAsInput(int gpioNum) {
   INP_GPIO(gpioNum);
+}
+
+static void setGpioAsOutput(int gpioNum) {
+  INP_GPIO(gpioNum);
+  OUT_GPIO(gpioNum);
+  // For OUR specific function our output pin is HIGH, so we pullup.
+  
+}
+
+static void mk_gpio_read_button(int pin) {
+  int read = GPIO_READ(pin);
+  if (read == 0) { // Means pushed? 200ms held so far ish.
+    
+  } else {
+     
+  }
 }
 
 static void mk_gpio_read_packet(struct mk_pad * pad, unsigned char *data) {
@@ -203,8 +214,10 @@ static void mk_close(struct input_dev *dev) {
   mutex_unlock(&mk->mutex);
 }
 
-static int __init mk_setup_pins(struct mk *mk, int *pins, int n_pins) {
-  struct mk_pin *pin
+static int __init mk_setup_pins(struct mk *mk, int *pins) {
+  mk->button_pin = pins[0];
+  mk->shutdown_pin = pins[1];
+  
 }
 
 static int __init mk_setup_pad(struct mk *mk, int idx, int pad_type_arg) {
@@ -322,6 +335,10 @@ static struct mk __init *mk_probe(int *pins, int n_pins) {
     goto err_out;
   }
   
+  mk->num_ticks_held = 0;
+  mk->prev_down = 0;
+  mk->cur_down = 0;
+  
   if (n_pins != MAX_PINS) {
     pr_err("Incorrect number of pins\n");
     err = -EINVAL;
@@ -329,10 +346,10 @@ static struct mk __init *mk_probe(int *pins, int n_pins) {
   }
 
   
-  mk_setup_pins(pins);
+  mk_setup_pins(mk,pins);
   mutex_init(&mk->mutex);
   setup_timer(&mk->timer, mk_timer, (long) mk);
-
+  
   return mk;
 
   err_out:
@@ -348,7 +365,7 @@ static void mk_remove(struct mk *mk) {
     kfree(mk);
 }
 
-static int __init atxraspi_init(void) {
+static int __init mk_init(void) {
   /* Set up gpio pointer for direct register access */
   if ((gpio = ioremap(GPIO_BASE, 0xB0)) == NULL) {
     pr_err("io remap failed\n");
@@ -365,12 +382,12 @@ static int __init atxraspi_init(void) {
   return 0;
 }
 
-static void __exit atxraspi_exit(void) {
+static void __exit mk_exit(void) {
   if (mk_base)
     mk_remove(mk_base);
 
   iounmap(gpio);
 }
 
-module_init(atxraspi_init);
-module_exit(atxraspi_exit);
+module_init(mk_init);
+module_exit(mk_exit);
