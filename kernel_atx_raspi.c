@@ -37,10 +37,8 @@
 #include <linux/ioport.h>
 #include <asm/io.h>
 
-#include <sys/time.h>
-
 MODULE_AUTHOR("Paul Downs");
-MODULE_DESCRIPTION("GPIO and ATX-Raspi Driver");
+MODULE_DESCRIPTION("ATX-Raspi Driver");
 MODULE_LICENSE("GPL");
 
 #define MK_MAX_DEVICES		1
@@ -141,10 +139,12 @@ static void mk_timer(unsigned long private) {
   mk_gpio_read_button(mk);
   if (mk->num_ticks_held >= mk->max_ticks) {
 	// Initiate shutdown.
+	printk("Shutdown initiated by %s\n",MODULE_DESCRIPTION);
 	sync();
 	reboot(LINUX_REBOOT_CMD_POWER_OFF);
   } else if (mk->prev_down == 1 && mk->cur_down == 0 && mk->num_ticks_held >= mk->reboot_ticks) {
 	// Initiate reboot.
+	printk("Reboot initiated by %s\n",MODULE_DESCRIPTION);
 	sync();
 	reboot(LINUX_REBOOT_CMD_RESTART);
   }
@@ -184,6 +184,9 @@ static struct mk __init *mk_probe(int *pins, int n_pins) {
   }
 
   mk_setup_pins(mk,pins);
+  printk("Button listening on pin %d\n",mk->button_pin);
+  printk("Pin %d set high for ATX-Raspi\n",mk->shutdown_pin);
+
   if(n_pins >= 3) {
 	mk->reboot_ticks = pins[2];
   } else {
@@ -194,6 +197,8 @@ static struct mk __init *mk_probe(int *pins, int n_pins) {
   } else {
 	mk->max_ticks = 20;
   }
+  printk("Will reboot if held for over %d, and less than %d\n",mk->reboot_ticks,mk->max_ticks);
+  printk("Will shutdown if held for %d or more\n",mk->max_ticks);
   
   if (n_pins > 4) {
 	pr_err("Extended configuration incorrect\n");
