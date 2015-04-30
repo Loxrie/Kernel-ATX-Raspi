@@ -35,6 +35,8 @@
 #include <linux/slab.h>
 
 #include <linux/ioport.h>
+#include <unistd.h>
+#include <linux/reboot.h>
 #include <asm/io.h>
 
 MODULE_AUTHOR("Paul Downs");
@@ -66,12 +68,12 @@ MODULE_LICENSE("GPL");
 
 static volatile unsigned *gpio;
 
-struct raspiatx_config {
+struct mk_config {
   int args[MAX_PINS];
   unsigned int nargs;
 };
 
-static struct raspiatx_config raspiatx_cfg __initdata;
+static struct mk_config mk_cfg __initdata;
 
 module_param_array_named(map, mk_cfg.args, int, &(mk_cfg.nargs), 0);
 MODULE_PARM_DESC(map, "Enable or disable GPIO and ATX-Raspi Board");
@@ -139,25 +141,25 @@ static void mk_timer(unsigned long private) {
   mk_gpio_read_button(mk);
   if (mk->num_ticks_held >= mk->max_ticks) {
 	// Initiate shutdown.
-	printk("Shutdown initiated by %s\n",MODULE_DESCRIPTION);
+	printk("Shutdown initiated by ATX-Raspi Driver\n");
 	sync();
 	reboot(LINUX_REBOOT_CMD_POWER_OFF);
   } else if (mk->prev_down == 1 && mk->cur_down == 0 && mk->num_ticks_held >= mk->reboot_ticks) {
 	// Initiate reboot.
-	printk("Reboot initiated by %s\n",MODULE_DESCRIPTION);
+	printk("Reboot initiated by ATX-Raspi Driver\n");
 	sync();
 	reboot(LINUX_REBOOT_CMD_RESTART);
   }
   mod_timer(&mk->timer, jiffies + MK_REFRESH_TIME);
 }
 
-static int __init mk_setup_pins(struct mk *mk, int *pins) {
+static void __init mk_setup_pins(struct mk *mk, int *pins) {
   mk->button_pin = pins[0];
   mk->shutdown_pin = pins[1];
   
   setGpioAsInput(mk->button_pin);
   setGpioAsOutput(mk->shutdown_pin);
-  GPIO_SET = 1<<gpioNum;
+  GPIO_SET = 1 << mk->shutdown_pin;
 }
 
 static struct mk __init *mk_probe(int *pins, int n_pins) {
