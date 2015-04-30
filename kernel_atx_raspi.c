@@ -32,7 +32,6 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/input.h>
-#include <linux/mutex.h>
 #include <linux/slab.h>
 
 #include <linux/ioport.h>
@@ -202,7 +201,6 @@ static struct mk __init *mk_probe(int *pins, int n_pins) {
 	goto err_out;
   }
   
-  mutex_init(&mk->mutex);
   setup_timer(&mk->timer, mk_timer, (long) mk);
   
   return mk;
