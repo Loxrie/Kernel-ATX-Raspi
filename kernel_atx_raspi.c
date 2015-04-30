@@ -87,7 +87,7 @@ MODULE_PARM_DESC(map, "Enable or disable GPIO and ATX-Raspi Board");
 struct mk {
   int button_pin;
   int shutdown_pin;
-  timer_list timer;
+  struct timer_list timer;
   int num_ticks_held; // How many of our modules ticks has the button been held for?
   int prev_down; // Where we held down before?
   int cur_down; // Are we held down now?
