@@ -54,12 +54,12 @@ MODULE_LICENSE("GPL");
 
 #define INP_GPIO(g) *(gpio+((g)/10)) &= ~(7<<(((g)%10)*3))
 #define OUT_GPIO(g) *(gpio+((g)/10)) |=  (1<<(((g)%10)*3))
-#define GPIO_READ(g)  *(gpio + 13) &= (1<<(g))
-
 #define SET_GPIO_ALT(g,a) *(gpio+(((g)/10))) |= (((a)<=3?(a)+4:(a)==4?3:2)<<(((g)%10)*3))
 
 #define GPIO_SET *(gpio+7)
 #define GPIO_CLR *(gpio+10)
+
+#define GET_GPIO(g) (*(gpio+13)&(1<<g)) // 0 if LOW, (1<<g) if HIGH
 
 #define BSC1_BASE		(PERI_BASE + 0x804000)
 
@@ -116,7 +116,7 @@ static void setGpioAsOutput(int gpioNum) {
 }
 
 static void mk_gpio_read_button(struct mk *mk) {
-  int read = GPIO_READ(mk->button_pin);
+  int read = GET_GPIO(mk->button_pin);
   if (read == 1) { // Means pushed, held for a 'tick' ~ 50ms.
 	printk("Button is down\n");
 	if (mk->prev_down == 0) {
@@ -157,6 +157,7 @@ static void __init mk_setup_pins(struct mk *mk, int *pins) {
   mk->shutdown_pin = pins[1];
   
   setGpioAsInput(mk->button_pin);
+  //setGpioPullUps(0x00100000);
   setGpioAsOutput(mk->shutdown_pin);
   GPIO_SET = 1 << mk->shutdown_pin;
 }
