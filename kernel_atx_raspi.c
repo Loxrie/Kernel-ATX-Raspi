@@ -87,14 +87,13 @@ struct mk {
   int shutdown_pin;
   int reboot_ticks;
   int max_ticks;
-  struct timer_list timer;
   int num_ticks_held; // How many of our modules ticks has the button been held for?
   int prev_down; // Were we held down before?
   int cur_down; // Are we held down now?
   int used;
-  struct mutex mutex;
 };
 
+static struct timer_list timer;
 static struct mk *mk_base;
 
 /* GPIO UTILS */
@@ -119,6 +118,7 @@ static void setGpioAsOutput(int gpioNum) {
 static void mk_gpio_read_button(struct mk *mk) {
   int read = GPIO_READ(mk->button_pin);
   if (read == 1) { // Means pushed, held for a 'tick' ~ 50ms.
+	printk("Button is down\n");
 	if (mk->prev_down == 0) {
 		mk->num_ticks_held = 1;
 		mk->cur_down = 1;
@@ -127,6 +127,8 @@ static void mk_gpio_read_button(struct mk *mk) {
 		mk->num_ticks_held++;
 	}
   } else {
+	if (mk->cur_down)
+		printk("Button is up\n");
 	mk->prev_down = 1;
 	mk->cur_down = 0;
   }
@@ -147,7 +149,7 @@ static void mk_timer(unsigned long private) {
 	printk("Reboot initiated by ATX-Raspi Driver\n");
 	kernel_restart(NULL);
   }
-  mod_timer(&mk->timer, jiffies + MK_REFRESH_TIME);
+  mod_timer(&timer, jiffies + MK_REFRESH_TIME);
 }
 
 static void __init mk_setup_pins(struct mk *mk, int *pins) {
@@ -162,6 +164,7 @@ static void __init mk_setup_pins(struct mk *mk, int *pins) {
 static struct mk __init *mk_probe(int *pins, int n_pins) {
   struct mk *mk;
   int err;
+  int ret;
 
   mk = kzalloc(sizeof (struct mk), GFP_KERNEL);
   if (!mk) {
@@ -203,7 +206,12 @@ static struct mk __init *mk_probe(int *pins, int n_pins) {
 	goto err_out;
   }
   
-  setup_timer(&mk->timer, mk_timer, (long) mk);
+  setup_timer(&timer, mk_timer, (long) mk);
+  ret = mod_timer(&timer, jiffies + MK_REFRESH_TIME);
+  if (ret)
+	printk("ATX-Raspi Driver timer is being pissy\n");
+  else
+  	printk("Waking up %p again in %d jiffies\n",timer,MK_REFRESH_TIME);
   
   return mk;
 
@@ -222,13 +230,20 @@ static int __init mk_init(void) {
     return -EINVAL;
   } else {
     mk_base = mk_probe(mk_cfg.args, mk_cfg.nargs);
+    printk("All your MK_BASE are belong to us @ %p\n",mk_base);
     if (IS_ERR(mk_base))
       return -ENODEV;
   }
+  printk("ATX-Raspi Driver timer %p good to go\n",timer);
   return 0;
 }
 
 static void __exit mk_exit(void) {
+  int ret;
+  printk("Uninstalling ATX-Raspi Driver\n");
+  ret = del_timer(&timer);
+  if (ret) 
+	printk("ATX-Raspi Driver timer still in use\n");
   if (mk_base)
     kfree(mk_base);
 
