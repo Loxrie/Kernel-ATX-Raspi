@@ -80,7 +80,7 @@ MODULE_PARM_DESC(map, "Enable or disable GPIO and ATX-Raspi Board");
 /* This gives us, in theory, a 50m/s tick on kernel module which is fine for 
  * a button that needs to be held down for AT LEAST 200m/s to do anything (4 ticks)
  */
-#define MK_REFRESH_TIME	HZ/20
+#define MK_REFRESH_TIME	HZ/5
 
 struct mk {
   int button_pin;
@@ -117,18 +117,20 @@ static void setGpioAsOutput(int gpioNum) {
 
 static void mk_gpio_read_button(struct mk *mk) {
   if (GET_GPIO(mk->button_pin)) { // Means pushed, held for a 'tick' ~ 50ms.
-	printk("Button is down\n");
-	if (mk->prev_down == 0) {
+	if (mk->cur_down == 0) {
+		printk("Button is down\n");
 		mk->num_ticks_held = 1;
 		mk->cur_down = 1;
 	} else {
+		printk("Button still down\n");
 		mk->prev_down = 1;
 		mk->num_ticks_held++;
 	}
   } else {
-	if (mk->cur_down)
+	if (mk->cur_down) {
+		mk->prev_down = 1;
 		printk("Button is up\n");
-	mk->prev_down = 1;
+	}
 	mk->cur_down = 0;
   }
 }
@@ -147,6 +149,13 @@ static void mk_timer(unsigned long private) {
 	// Initiate reboot.
 	printk("Reboot initiated by ATX-Raspi Driver\n");
 	//kernel_restart(NULL);
+  }
+  printk("Status %d/%d is cur_down %d and prev_down %d\n",mk->num_ticks_held,mk->reboot_ticks,mk->cur_down,mk->prev_down);
+  if (mk->cur_down == 0 && mk->prev_down == 1) { // RESET
+	printk("Resetting status\n");
+	mk->prev_down = 0;
+	mk->num_ticks_held = 0;
+	mk->cur_down = 0;
   }
   mod_timer(&timer, jiffies + MK_REFRESH_TIME);
 }
@@ -190,12 +199,12 @@ static struct mk __init *mk_probe(int *pins, int n_pins) {
   if(n_pins >= 3) {
 	mk->reboot_ticks = pins[2];
   } else {
-	mk->reboot_ticks = 12;
+	mk->reboot_ticks = 4;
   }
   if (n_pins >= 4) {
 	mk->max_ticks = pins[3];
   } else {
-	mk->max_ticks = 20;
+	mk->max_ticks = 12;
   }
   printk("Will reboot if held for over %d, and less than %d\n",mk->reboot_ticks,mk->max_ticks);
   printk("Will shutdown if held for %d or more\n",mk->max_ticks);
@@ -211,7 +220,7 @@ static struct mk __init *mk_probe(int *pins, int n_pins) {
   if (ret)
 	printk("ATX-Raspi Driver timer is being pissy\n");
   else
-  	printk("Waking up %p again in %d jiffies\n",timer,MK_REFRESH_TIME);
+  	printk("Waking up %p again in %d jiffies\n",&timer,MK_REFRESH_TIME);
   
   return mk;
 
@@ -234,7 +243,7 @@ static int __init mk_init(void) {
     if (IS_ERR(mk_base))
       return -ENODEV;
   }
-  printk("ATX-Raspi Driver timer %p good to go\n",timer);
+  printk("ATX-Raspi Driver timer %p good to go\n",&timer);
   return 0;
 }
 
