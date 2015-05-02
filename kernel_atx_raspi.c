@@ -142,11 +142,11 @@ static void mk_timer(unsigned long private) {
   if (mk->num_ticks_held >= mk->max_ticks) {
 	// Initiate shutdown.
 	printk("Shutdown initiated by ATX-Raspi Driver\n");
-	kernel_power_off();
+	//kernel_power_off();
   } else if (mk->prev_down == 1 && mk->cur_down == 0 && mk->num_ticks_held >= mk->reboot_ticks) {
 	// Initiate reboot.
 	printk("Reboot initiated by ATX-Raspi Driver\n");
-	kernel_restart(NULL);
+	//kernel_restart(NULL);
   }
   mod_timer(&timer, jiffies + MK_REFRESH_TIME);
 }
