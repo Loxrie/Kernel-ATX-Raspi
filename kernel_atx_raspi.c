@@ -116,8 +116,7 @@ static void setGpioAsOutput(int gpioNum) {
 }
 
 static void mk_gpio_read_button(struct mk *mk) {
-  int read = GET_GPIO(mk->button_pin);
-  if (read == 1) { // Means pushed, held for a 'tick' ~ 50ms.
+  if (GET_GPIO(mk->button_pin)) { // Means pushed, held for a 'tick' ~ 50ms.
 	printk("Button is down\n");
 	if (mk->prev_down == 0) {
 		mk->num_ticks_held = 1;
