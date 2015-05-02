@@ -80,7 +80,7 @@ MODULE_PARM_DESC(map, "Enable or disable GPIO and ATX-Raspi Board");
 /* This gives us, in theory, a 50m/s tick on kernel module which is fine for 
  * a button that needs to be held down for AT LEAST 200m/s to do anything (4 ticks)
  */
-#define MK_REFRESH_TIME	HZ/5
+#define MK_REFRESH_TIME	HZ/50
 
 struct mk {
   int button_pin;
@@ -199,12 +199,12 @@ static struct mk __init *mk_probe(int *pins, int n_pins) {
   if(n_pins >= 3) {
 	mk->reboot_ticks = pins[2];
   } else {
-	mk->reboot_ticks = 4;
+	mk->reboot_ticks = 10; // 10 ticks is 200ms
   }
   if (n_pins >= 4) {
 	mk->max_ticks = pins[3];
   } else {
-	mk->max_ticks = 12;
+	mk->max_ticks = 30;
   }
   printk("Will reboot if held for over %d, and less than %d\n",mk->reboot_ticks,mk->max_ticks);
   printk("Will shutdown if held for %d or more\n",mk->max_ticks);
